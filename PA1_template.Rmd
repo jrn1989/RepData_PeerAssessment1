@@ -5,21 +5,169 @@ output:
     keep_md: true
 ---
 
+# Peer Assessment 1 - Reproducible Research
+
+Coded by: José Robles
+
+## Packages
+
+It is important to notice that we requiere these two packages:
+
+```{r}
+library("plyr")
+library("ggplot2")
+```
+
 
 ## Loading and preprocessing the data
 
+We include the script **PA1_script.R** that does the loading, preprocessing and analysis as requested.
 
+First we need to set our working directory as the source file location, the script should be in the same directory where the data file activity.csv is located. In my case:
 
-## What is mean total number of steps taken per day?
+```{r}
+setwd("~/Documents/DataScienceSpecialization/5-RepRes/RepData_PeerAssessment1")
+activityData <- read.csv("~/Documents/DataScienceSpecialization/5-RepRes/RepData_PeerAssessment1/activity.csv")
 
+```
 
+We make sure that we have the correct datatype for each column:
 
-## What is the average daily activity pattern?
+```{r}
+activityData$steps <- as.numeric(as.character(activityData$steps))
+activityData$interval <- as.numeric(as.character(activityData$interval))
+activityData$date <- as.Date(activityData$date,"%Y-%m-%d")
+```
+```{r}
 
+```
+
+For the first part, we can ignore the missing values, so we will just extract all the *complete cases*:
+
+```{r}
+activityDataCompleteCases <- activityData[complete.cases(activityData),]
+```
+
+For each day, we calculate the total number of steps:
+
+```{r}
+activityDataCompleteCasesTotalSteps <- ddply(activityDataCompleteCases,  "date", summarise, steps = sum(steps))
+```
+
+And we plot the histogram:
+
+```{r}
+plot(activityDataCompleteCasesTotalSteps$date, activityDataCompleteCasesTotalSteps$steps,type="h",lwd=8,col="blue",xlab="Days", ylab="Total steps")
+
+```
+
+## What is mean and median of total number of steps taken per day?
+
+```{r}
+mean(activityDataCompleteCasesTotalSteps$steps)
+median(activityDataCompleteCasesTotalSteps$steps)
+```
+
+We can see that those values are almost the same
 
 
 ## Imputing missing values
 
+The number of rows with missing values is:
+
+```{r}
+sum(!complete.cases(activityData))
+```
+
+We will calculate the mean for each day and that number will sustitute the missing value for that day:
+
+```{r}
+meansEachDay = ddply(activityData,  "date", summarise, steps = mean(steps))
+```
+
+Let's notice that for a full day, there are no records of activity, and for that reason, the mean is a missing value:
+
+```{r}
+meansEachDay
+```
+
+We will sustitute that missing value with zero (we can think that no activity took place in that day):
+
+```{r}
+meansEachDay$steps[is.na(meansEachDay$steps)] <- 0
+```
+
+Now the variable **activityData2** will hold the original dataset with the imputed missing values:
+
+```{r}
+activityData2 = activityData
+
+j=1
+for(i in 1:nrow(activityData2)){
+  if(is.na(activityData2[i,1])){
+    if(activityData2[i,2]==meansEachDay[j,1]){
+      activityData2[i,1] = meansEachDay[j,2]
+      
+    }else{
+      j = j+1
+      activityData2[i,1] = meansEachDay[j,2]
+      
+    }
+  }
+}
+```
+
+We calculate the total number of steps for each day now for **activityData2** and we compare the mean and median with the previous case where we ignore missing values::
+
+```{r}
+activityData2TotalSteps = ddply(activityData2,  "date", summarise, steps = sum(steps))
+mean(activityData2TotalSteps$steps)
+median(activityData2TotalSteps$steps)
+mean(activityDataCompleteCasesTotalSteps$steps)
+median(activityDataCompleteCasesTotalSteps$steps)
+```
+
+We can see that the mean and median are lower when we impute the missing values. I think this is because as we saw previously, there is no activity for some full days and we just keep adding many zeros for a longer period of time, causing the mean to decrease.
+
+## What is the average daily activity pattern?
+
+For our second dataset, **activityData2**, we create a new column:
+
+```{r}
+activityData2$weekend = "Weekend"
+```
+
+And we add the proper label if it the day listed in the column *date* is  *Weekday* or *Weekend*:
+
+```{r}
+activityData2[weekdays(activityData2$date) %in% c("Monday","Tuesday","Wednesday","Thursday","Friday")
+      ,c("weekend") ] = "Weekday"
+```
+
+We calculate the average number of steps for every 5-minute interval, grouped by *Weekend* and *Weekday*:
+
+```{r}
+my5interval2 = ddply(activityData2,  c("weekend","interval"), summarise, steps = mean(steps))
+```
+
+And we change the column *weekend* to factor:
+```{r}
+my5interval2$weekend = as.factor(my5interval2$weekend)
+
+```
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+This is the information we will plot:
+
+```{r}
+my5interval2
+```
+
+```{r}
+ggplot(my5interval2, aes(interval, steps)) + geom_line() + facet_grid(weekend ~ .)
+
+```
+
+We can see that there is a small difference where apparently, the total number of steps is a bit higher in the weekends.
